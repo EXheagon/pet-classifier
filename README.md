@@ -9,7 +9,7 @@
 - 学习率：1e-4
 - Batch Size：32
 - Epoch：15
-- 训练平台：免费GPU环境
+- 训练平台：T4 GPU
 
 ## 数据集
 Oxford-IIIT Pet Dataset

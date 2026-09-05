@@ -1,5 +1,9 @@
 torch
 torchvision
-numpy
-matplotlib
+timm
 scikit-learn
+tensorboard
+matplotlib
+seaborn
+pillow
+numpy

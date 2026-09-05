@@ -1,51 +1,78 @@
 import torch
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    classification_report,
-    confusion_matrix
-)
+import numpy as np
+import cv2
 
 
-def calculate_top1(preds, labels):
-    return accuracy_score(labels, preds)
+class GradCAM:
 
+    def __init__(self, model, target_layer):
 
-def calculate_top5(outputs, labels):
+        self.model = model
+        self.target_layer = target_layer
 
-    top5 = outputs.topk(5, dim=1).indices
+        self.activations = None
+        self.gradients = None
 
-    correct = top5.eq(labels.view(-1, 1))
+        target_layer.register_forward_hook(
+            self.save_activation
+        )
 
-    return correct.any(dim=1).float().mean().item()
+        target_layer.register_full_backward_hook(
+            self.save_gradient
+        )
 
+    def save_activation(
+        self,
+        module,
+        input,
+        output
+    ):
 
-def calculate_macro_f1(preds, labels):
+        self.activations = output
 
-    return f1_score(
-        labels,
-        preds,
-        average="macro"
-    )
+    def save_gradient(
+        self,
+        module,
+        grad_input,
+        grad_output
+    ):
 
+        self.gradients = grad_output[0]
 
-def get_classification_report(
-    labels,
-    preds,
-    class_names
-):
+    def generate(self, image, class_idx):
 
-    return classification_report(
-        labels,
-        preds,
-        target_names=class_names,
-        digits=4
-    )
+        self.model.zero_grad()
 
+        output = self.model(image)
 
-def get_confusion_matrix(labels, preds):
+        score = output[:, class_idx]
 
-    return confusion_matrix(
-        labels,
-        preds
-    )
+        score.backward()
+
+        gradients = self.gradients
+        activations = self.activations
+
+        weights = gradients.mean(
+            dim=(2, 3),
+            keepdim=True
+        )
+
+        cam = (
+            weights * activations
+        ).sum(dim=1)
+
+        cam = torch.relu(cam)
+
+        cam = cam.squeeze().detach().cpu().numpy()
+
+        cam = cv2.resize(
+            cam,
+            (224, 224)
+        )
+
+        cam -= cam.min()
+
+        if cam.max() != 0:
+            cam /= cam.max()
+
+        return cam
